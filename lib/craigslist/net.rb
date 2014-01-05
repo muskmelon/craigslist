@@ -8,15 +8,30 @@ module Craigslist
       max_ask: :maxAsk,
       has_image: :hasPic
     }
-
+    
+    # Yuan: new method to define a country
+    @@country = ''
+    def self.country=(country)
+      @@country = country
+    end
+    def self.country
+      @@country
+    end
+    
     class << self
-
+      
+      # Yuan: Overwrite to be able to handle multiple country
       # Returns a Craigslist uri given the city subdomain
       #
       # @param city_path [String]
       # @return [String]
       def build_city_uri(city_path)
-        "http://#{city_path}.craigslist.org"
+        case @@country
+        when "canada"
+          "http://#{city_path}.en.craigslist.ca"
+        else
+          "http://#{city_path}.craigslist.org"
+        end
       end
 
       # Returns a Craigslist uri given city path, category path, options
@@ -57,10 +72,19 @@ module Craigslist
           if offset && offset > 0
             params = Hash[s: offset].merge(params)
           end
-
-          query_string = build_query(params)
-
-          uri = "#{build_city_uri(city_path)}/search/#{category_path}?" + query_string
+          
+          # Yuan: not used
+          # query_string = build_query(params)
+          query = params[:query]
+          query.gsub!('(','%28')
+          query.gsub!(')','%29')
+          query.gsub!('|','%7C')
+          query.gsub!('"','%22')
+          query.gsub!(' ','+')
+          
+          # Yuan: fix query
+          uri = "#{build_city_uri(city_path)}/search/#{category_path}?catAbb=#{category_path}&query=#{query}&zoomToPosting=&minAsk=&maxAsk=&sort=date"
+          uri
         end
       end
 

@@ -2,7 +2,7 @@ require 'nokogiri'
 
 module Craigslist
   class Persistable
-
+    
     DEFAULTS = {
       limit: 100,
       query: nil,
@@ -39,22 +39,23 @@ module Craigslist
         search_type: @search_type,
         min_ask: @min_ask,
         max_ask: @max_ask,
-        has_image: @has_image
+        has_image: @has_image,
       }
-
       uri = Craigslist::Net::build_uri(@city, @category_path, options)
       results = []
-
+      
       for i in 0..(([max_results - 1, -1].max) / 100)
         uri = Craigslist::Net::build_uri(@city, @category_path, options, i * 100) if i > 0
+        puts "wehjfguewgyufyu\n#{uri}"
         doc = Nokogiri::HTML(open(uri))
-
+        home_uri = "http://#{uri.split("/")[2]}"
+        
         doc.css('p.row').each do |node|
           result = {}
 
           title = node.at_css('.pl a')
           result['text'] = title.text.strip
-          result['href'] = title['href']
+          result['href'] = "#{home_uri}#{title['href']}" # Yuan: make it absolute
 
           info = node.at_css('.l2 .pnr')
 
@@ -73,7 +74,27 @@ module Craigslist
 
           attributes = info.at_css('.px').text
           result['has_img'] = attributes.include?('img') || attributes.include?('pic')
-
+          
+          # Yuan: add category and poster type (dealer/owner)
+          gc = node.at_css('a.gc').text.split(" - by ") rescue nil
+          category = gc[0] rescue nil
+          poster_type = gc[1] rescue nil
+          result['category'] = category if category
+          result['poster_type'] = poster_type if poster_type
+          
+          # Yuan: check extra criteria
+          next if (category && @@exclude_category.include?(category))
+          next if (poster_type && @@owner_only && poster_type != "owner")
+          
+          # Yuan: image fix
+          # craigslist use javascript to insert image, so we cannot get it
+          # luckily the naming for the image are based on the data-id
+          # ex: <a href="/rds/rvd/4154855264.html" class="i" data-id="0:00r0r_eWzE6JFHs6u">
+          # ex: <img alt="" src="http://images.craigslist.org/00r0r_eWzE6JFHs6u_300x300.jpg">
+          image_name = node.at_css('a.i').values[2].split(":")[1] rescue nil
+          image = "http://images.craigslist.org/#{image_name}_300x300.jpg" if image_name
+          result['image'] = image if image
+          
           results << result
           break if results.length == max_results
         end
@@ -87,14 +108,14 @@ module Craigslist
     ##
 
     attr_reader :results
-
+    
     # @param city [Symbol]
     # @return [Craigslist::Persistable]
     def city=(city)
       @city = city
       self
     end
-
+    
     # @param category [Symbol, String]
     def category=(category)
       category_path = Craigslist::category_path_by_name(category)
@@ -182,7 +203,7 @@ module Craigslist
       self.category = category
       self
     end
-
+    
     # @param city [Symbol]
     # @return [Craigslist::Persistable, Symbol]
     def city(city=Object)
@@ -297,7 +318,29 @@ module Craigslist
         super
       end
     end
+    
+    
+    # Yuan: new method to define a exclude_category
+    @@exclude_category = []
+    # @param exclude_category [Array]
+    def self.exclude_category=(exclude_category)
+      @@exclude_category = exclude_category
+    end
+    def self.exclude_category
+      @@exclude_category
+    end
 
+    # Yuan: new method to define a owner_only
+    @@owner_only = false
+    # @param exclude_category [Boolean]
+    def self.owner_only=(owner_only)
+      @@owner_only = owner_only
+    end
+    def self.owner_only
+      @@owner_only
+    end
+    
+    
     private
 
     # Sets uninitialized defaults as instance variables of the Persistable
