@@ -59,7 +59,7 @@ module Craigslist
 
           info = node.at_css('.l2 .pnr')
 
-          if price = info.at_css('.price')
+          if price = node.at_css('.price')
             result['price'] = price.text.strip
           else
             result['price'] = nil
